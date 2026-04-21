@@ -1,25 +1,18 @@
 # creatcode/iotmonitor
 
-`creatcode/iotmonitor` 是一个面向 Workerman/Webman TCP 协议服务的轻量监控包，提供协议流量统计、Redis 写入缓冲、数据库与 Redis 长连接辅助管理，以及常用物联网协议拆包基类。
+`creatcode/iotmonitor` 是面向 Webman / Workerman 的物联网 TCP 协议辅助插件，主要提供协议拆包、流量统计、Redis 写入缓冲、数据库与 Redis 长连接管理等能力。
 
 ## 环境要求
 
 - PHP >= 7.2
-- Workerman/Webman
+- Webman / Workerman
 - Redis
-- `webman/think-cache`
-- `webman/think-orm`
+- webman/think-cache
+- webman/think-orm
 
-依赖版本兼容 PHP 7.2 到 PHP 8.x。低版本 PHP 环境下，Composer 会根据依赖自身约束解析到仍支持 PHP 7.2 的版本。
+## 安装
 
-## Composer 文件
-
-包内保留两类 Composer 配置：
-
-- `composer.json`：正式发布使用。
-- `composer-local.json`：本地 path 包开发使用，可保留 `minimum-stability` 等本地开发配置。
-
-主项目本地开发可这样引用：
+本地 path 包开发时，主项目 `composer.json` 可这样引用：
 
 ```json
 {
@@ -38,15 +31,22 @@
 }
 ```
 
-## 安装配置
+安装或更新：
 
-Webman 插件安装后会复制配置到：
+```bash
+composer update creatcode/iotmonitor
+composer dump-autoload
+```
+
+## 插件配置
+
+配置目录：
 
 ```text
 config/plugin/creatcode/iotmonitor/
 ```
 
-核心配置示例：
+常用配置示例：
 
 ```php
 <?php
@@ -57,7 +57,7 @@ return [
     'traffic' => [
         'enable' => false,
         'flush_interval' => 5,
-        'retention_seconds' => 172800,
+        'retention_seconds' => 86400,
     ],
 
     'db' => [
@@ -71,70 +71,77 @@ return [
             'ping' => 4,
         ],
     ],
+
+    'overview' => [
+        'queues' => [
+            'login_command',
+            'check_report_data',
+        ],
+    ],
 ];
 ```
 
 说明：
 
-- `traffic.enable`：是否启用流量统计。
-- `traffic.flush_interval`：内存统计刷新到 Redis 的间隔，单位秒。
-- `traffic.retention_seconds`：分钟统计在 Redis 中的保留时间。
-- `protocol.extra_packets`：非标准上报包的固定包长配置，key 为包类型标识，value 为完整包长。
+- `enable`：插件总开关。
+- `traffic.enable`：是否启用协议流量统计，默认关闭。
+- `traffic.flush_interval`：进程内统计数据写入 Redis 的间隔，单位秒。
+- `traffic.retention_seconds`：分钟流量统计在 Redis 中的保留时间。
+- 修改配置后需要重启 Webman / GatewayWorker 常驻进程。
 
-也可以通过常量强制控制流量监控：
-
-```php
-define('TRAFFIC_MONITOR_ENABLED', true);
-```
+插件不再读取 `.env` 中的 `monitor.traffic_enable`，也不依赖 `TRAFFIC_MONITOR_ENABLED` 常量。
 
 ## 协议接入
 
-内置协议类位于 `CreatCode\IotMonitor\Protocol` 命名空间：
+内置协议类位于命名空间：
+
+```php
+CreatCode\IotMonitor\Protocol
+```
+
+当前包含：
 
 - `ModbusTcpProtocol`
 - `ModbusRtuProtocol`
 - `TemperatureProtocol`
 - `LoRaProtocol`
 
-在 Workerman/Webman TCP 服务中直接指定协议类即可，例如：
+在 GatewayWorker 或 Workerman TCP 服务中指定协议类即可：
 
 ```php
 use CreatCode\IotMonitor\Protocol\ModbusTcpProtocol;
 
 return [
-    'tcp-server' => [
-        'handler' => app\process\TcpServer::class,
-        'listen' => 'tcp://0.0.0.0:12345',
-        'transport' => 'tcp',
+    'Tcp-Gateway' => [
+        'handler' => Webman\GatewayWorker\Gateway::class,
+        'listen' => 'tcp://0.0.0.0:2404',
         'protocol' => ModbusTcpProtocol::class,
     ],
 ];
 ```
 
-协议类继承自 `BaseProtocol`。`decode()` 会自动记录接收流量和上报包数量，`encode()` 会自动记录发送流量。
+## 流量统计
 
-## 读取监控数据
+启用 `traffic.enable` 后，协议收发数据会自动记录到 Redis。
 
-使用 `TrafficReader` 读取最近 N 分钟的流量统计：
+读取最近 N 分钟统计：
 
 ```php
 use CreatCode\IotMonitor\Monitor\AppTrafficStore;
 use CreatCode\IotMonitor\TrafficReader;
 
 $reader = new TrafficReader(new AppTrafficStore());
-$data = $reader->buildTrafficData(5);
+$data = $reader->buildTrafficData(60);
 ```
 
-返回数据包含：
+返回数据主要包含：
 
 - `current`：最近 1 分钟统计。
-- `summary`：指定窗口统计。
-- `windows`：多个窗口统计，默认包含 1 分钟、5 分钟和请求窗口。
+- `summary`：指定时间窗口汇总。
+- `windows`：多个时间窗口统计。
 - `protocols`：按协议拆分的统计。
 
-## 手动记录流量
-
-如果业务代码不走内置协议类，也可以手动记录：
+手动记录流量：
 
 ```php
 use CreatCode\IotMonitor\TrafficMonitor;
@@ -144,31 +151,7 @@ TrafficMonitor::record('custom', 'tx', strlen($response));
 TrafficMonitor::flush();
 ```
 
-## 连接管理
-
-`RedisManager` 和 `DbManager` 用于 Webman 常驻进程中的连接复用与断线重试：
-
-```php
-use CreatCode\IotMonitor\RedisManager;
-use CreatCode\IotMonitor\DbManager;
-
-$value = RedisManager::hGet('DeviceData', '10001');
-
-$rows = DbManager::call(function () {
-    return \think\facade\Db::name('device')->select();
-});
-```
-
-`RedisManager::pipeline()` 可用于批量 Redis 写入：
-
-```php
-RedisManager::pipeline(function ($redis) {
-    $redis->hSet('demo', 'count', 1);
-    $redis->expire('demo', 60);
-});
-```
-
-## 存储结构
+## Redis 存储
 
 流量统计默认写入 Redis Hash：
 
@@ -185,10 +168,48 @@ MonitorTraffic:minute:{YmdHi}
 - `report_packets`
 - `{protocol}:rx_bytes`
 - `{protocol}:tx_bytes`
+- `{protocol}:rx_packets`
+- `{protocol}:tx_packets`
 - `{protocol}:report_packets`
+
+默认保留 1 天，Redis 库编号由主项目 `config/thinkcache.php` 决定。
+
+## 连接管理
+
+插件提供 `RedisManager` 和 `DbManager`，用于常驻进程中的连接复用、探活和断线重试。
+
+```php
+use CreatCode\IotMonitor\DbManager;
+use CreatCode\IotMonitor\RedisManager;
+
+$value = RedisManager::hGet('DeviceData', '10001');
+
+$rows = DbManager::call(function () {
+    return \think\facade\Db::name('device')->select();
+});
+```
+
+Redis 批量写入建议使用 pipeline：
+
+```php
+RedisManager::pipeline(function ($redis) {
+    $redis->hSet('demo', 'count', 1);
+    $redis->expire('demo', 60);
+});
+```
+
+## 日志
+
+插件内部日志统一通过 `ManagerHelper::log()` 写入：
+
+- 主项目存在 `iotlog()` 时，优先使用项目日志。
+- 不存在 `iotlog()` 时，写入 `runtime/iotlog/`。
+
+流量刷盘失败会写入 `monitor.log`，用于排查 Redis 连接或写入异常。
 
 ## 注意事项
 
-- 生产环境建议开启 Redis 持久化或设置合理的统计保留时间。
-- PHP 7.2 环境下，主项目的依赖约束也必须允许解析到低版本兼容包。
-- 流量统计采用进程内缓冲并定时写入 Redis，进程异常退出时可能丢失极少量尚未刷新的统计。
+- `traffic.enable` 默认关闭，生产环境按需开启。
+- 统计数据先写入进程内缓冲，再定时刷入 Redis。
+- 修改插件配置、Redis 配置或协议类后，需要重启常驻进程。
+- Redis 连接配置以主项目 `config/thinkcache.php` 为准。

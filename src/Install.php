@@ -7,12 +7,13 @@ class Install
     const WEBMAN_PLUGIN = true;
 
     /**
-     * 需要复制到项目的插件配置
+     * 需要复制到项目的插件文件
      *
      * @var array
      */
     protected static $pathRelation = [
         'config/plugin/creatcode/iotmonitor' => 'config/plugin/creatcode/iotmonitor',
+        'plugin/iotmonitor' => 'plugin/iotmonitor',
     ];
 
     /**
@@ -36,7 +37,7 @@ class Install
     }
 
     /**
-     * 复制插件配置
+     * 复制插件文件
      *
      * @return void
      */
@@ -56,7 +57,7 @@ class Install
     }
 
     /**
-     * 删除插件配置
+     * 删除插件文件
      *
      * @return void
      */

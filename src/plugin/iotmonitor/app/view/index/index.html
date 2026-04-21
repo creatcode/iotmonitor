@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>IoT Monitor</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            color: #172033;
+            background: #f4f7fb;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+        }
+        .page {
+            max-width: 1320px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        .header {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+        .title {
+            margin: 0;
+            font-size: 28px;
+            line-height: 1.2;
+        }
+        .meta {
+            margin-top: 6px;
+            color: #64748b;
+            font-size: 13px;
+        }
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        select,
+        button {
+            height: 36px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #fff;
+            color: #172033;
+            padding: 0 12px;
+            font-size: 14px;
+        }
+        button { cursor: pointer; }
+        .error {
+            display: none;
+            margin-bottom: 14px;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            background: #fff1f2;
+            color: #b91c1c;
+            padding: 12px 14px;
+        }
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .card,
+        .panel {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #fff;
+        }
+        .card {
+            min-height: 126px;
+            padding: 16px;
+        }
+        .label {
+            color: #64748b;
+            font-size: 13px;
+        }
+        .value {
+            margin-top: 10px;
+            font-size: 28px;
+            font-weight: 700;
+            line-height: 1.18;
+            word-break: break-all;
+        }
+        .sub {
+            margin-top: 8px;
+            color: #64748b;
+            font-size: 13px;
+        }
+        .main {
+            display: grid;
+            grid-template-columns: minmax(0, 1.25fr) minmax(360px, .75fr);
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .panel-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 14px 16px;
+            border-bottom: 1px solid #e2e8f0;
+            font-weight: 700;
+        }
+        .panel-body { padding: 16px; }
+        .chart {
+            display: grid;
+            grid-template-columns: 84px minmax(0, 1fr) 86px;
+            gap: 10px;
+            align-items: center;
+        }
+        .chart + .chart { margin-top: 14px; }
+        .bar {
+            height: 12px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            overflow: hidden;
+        }
+        .bar span {
+            display: block;
+            width: 0;
+            height: 100%;
+            border-radius: 999px;
+            background: #2563eb;
+            transition: width .2s ease;
+        }
+        .bar.tx span { background: #0891b2; }
+        .bar.report span { background: #16a34a; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        th,
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #eef2f7;
+            text-align: left;
+            white-space: nowrap;
+        }
+        th {
+            color: #64748b;
+            font-weight: 600;
+            background: #f8fafc;
+        }
+        tr:last-child td { border-bottom: 0; }
+        .status-normal { color: #059669; }
+        .status-warning { color: #d97706; }
+        .status-danger { color: #dc2626; }
+        .muted { color: #64748b; }
+        @media (max-width: 980px) {
+            .cards,
+            .main { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 680px) {
+            .page { padding: 16px; }
+            .header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+            .cards,
+            .main { grid-template-columns: 1fr; }
+            .toolbar { width: 100%; }
+            select,
+            button { flex: 1; }
+            .table-wrap { overflow-x: auto; }
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+    <div class="header">
+        <div>
+            <h1 class="title">IoT Monitor</h1>
+            <div class="meta" id="lastUpdate">等待数据刷新</div>
+        </div>
+        <div class="toolbar">
+            <select id="minutes">
+                <option value="5">最近5分钟</option>
+                <option value="60" selected>最近60分钟</option>
+                <option value="180">最近3小时</option>
+                <option value="1440">最近24小时</option>
+            </select>
+            <button type="button" id="refresh">刷新</button>
+        </div>
+    </div>
+
+    <div class="error" id="error"></div>
+
+    <div class="cards">
+        <div class="card">
+            <div class="label">总流量</div>
+            <div class="value" id="totalTraffic">-</div>
+            <div class="sub" id="trafficSpeed">-</div>
+        </div>
+        <div class="card">
+            <div class="label">上报包</div>
+            <div class="value" id="reportPackets">-</div>
+            <div class="sub" id="reportSpeed">-</div>
+        </div>
+        <div class="card">
+            <div class="label">TSDB待写入</div>
+            <div class="value" id="reportCache">-</div>
+            <div class="sub" id="reportCacheHealth">-</div>
+        </div>
+        <div class="card">
+            <div class="label">活跃设备</div>
+            <div class="value" id="activeDevice">-</div>
+            <div class="sub">最近5分钟</div>
+        </div>
+    </div>
+
+    <div class="main">
+        <div class="panel">
+            <div class="panel-title">
+                <span>窗口流量</span>
+                <span class="muted" id="windowName">-</span>
+            </div>
+            <div class="panel-body">
+                <div class="chart">
+                    <span>接收</span>
+                    <div class="bar"><span id="rxBar"></span></div>
+                    <strong id="rxValue">-</strong>
+                </div>
+                <div class="chart">
+                    <span>发送</span>
+                    <div class="bar tx"><span id="txBar"></span></div>
+                    <strong id="txValue">-</strong>
+                </div>
+                <div class="chart">
+                    <span>上报包</span>
+                    <div class="bar report"><span id="reportBar"></span></div>
+                    <strong id="reportValue">-</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-title">运行进程</div>
+            <div class="table-wrap">
+                <table>
+                    <tbody id="runtimeRows"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-top:12px">
+        <div class="panel-title">队列积压</div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>队列</th>
+                    <th>等待数量</th>
+                    <th>状态</th>
+                    <th>Redis Key</th>
+                </tr>
+                </thead>
+                <tbody id="queueRows"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-top:12px">
+        <div class="panel-title">协议统计</div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>协议</th>
+                    <th>接收</th>
+                    <th>发送</th>
+                    <th>总包数</th>
+                    <th>上报包</th>
+                </tr>
+                </thead>
+                <tbody id="protocolRows"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    function setText(id, value) {
+        document.getElementById(id).textContent = value;
+    }
+
+    function statusText(value) {
+        if (value === 'danger') {
+            return '危险';
+        }
+        if (value === 'warning') {
+            return '预警';
+        }
+        return '正常';
+    }
+
+    function statusClass(value) {
+        return 'status-' + (value || 'normal');
+    }
+
+    function percent(value, max) {
+        if (!max) {
+            return 0;
+        }
+        return Math.max(3, Math.min(100, Math.round(value / max * 100)));
+    }
+
+    function renderRows(target, rows, columns) {
+        const body = document.getElementById(target);
+        if (!rows.length) {
+            body.innerHTML = '<tr><td colspan="' + columns.length + '" class="muted">暂无数据</td></tr>';
+            return;
+        }
+        body.innerHTML = rows.map(function (row) {
+            return '<tr>' + columns.map(function (column) {
+                return '<td>' + column(row) + '</td>';
+            }).join('') + '</tr>';
+        }).join('');
+    }
+
+    function renderTraffic(summary) {
+        const rx = Number(summary.rx_bytes || 0);
+        const tx = Number(summary.tx_bytes || 0);
+        const report = Number(summary.report_packets || 0);
+        const max = Math.max(rx, tx, report, 1);
+
+        setText('totalTraffic', summary.total_format || '0 B');
+        setText('trafficSpeed', summary.total_speed_format || '0 B/s');
+        setText('reportPackets', report);
+        setText('reportSpeed', (summary.report_speed || 0) + ' 包/秒');
+        setText('windowName', (summary.window_minutes || '-') + ' 分钟');
+        setText('rxValue', summary.rx_format || '0 B');
+        setText('txValue', summary.tx_format || '0 B');
+        setText('reportValue', report);
+
+        document.getElementById('rxBar').style.width = percent(rx, max) + '%';
+        document.getElementById('txBar').style.width = percent(tx, max) + '%';
+        document.getElementById('reportBar').style.width = percent(report, max) + '%';
+    }
+
+    function renderRuntime(runtime) {
+        const queue = runtime.redis_queue_process || {};
+        const gateway = runtime.gateway_process || {};
+        const rows = [
+            ['流量监控', runtime.monitor && runtime.monitor.traffic_enable ? '已开启' : '未开启'],
+            ['快速队列进程', queue.fast_consumer_count || 0],
+            ['慢速队列进程', queue.slow_consumer_count || 0],
+            ['RTU网关进程', gateway.rtu_count || 0],
+            ['TCP网关进程', gateway.tcp_count || 0],
+            ['LoRa网关进程', gateway.lora_count || 0],
+            ['温湿度网关进程', gateway.temp_count || 0],
+            ['WebSocket进程', gateway.websocket_count || 0],
+            ['业务进程', gateway.business_worker_count || 0]
+        ];
+
+        document.getElementById('runtimeRows').innerHTML = rows.map(function (row) {
+            return '<tr><td>' + row[0] + '</td><td><strong>' + row[1] + '</strong></td></tr>';
+        }).join('');
+    }
+
+    async function loadData() {
+        const error = document.getElementById('error');
+        const minutes = document.getElementById('minutes').value;
+
+        try {
+            error.style.display = 'none';
+            const response = await fetch('/app/iotmonitor/index/overview?minutes=' + encodeURIComponent(minutes), {
+                headers: {'Accept': 'application/json'}
+            });
+            const payload = await response.json();
+            if (!payload || payload.code !== 0) {
+                throw new Error(payload && payload.msg ? payload.msg : '监控数据读取失败');
+            }
+
+            const data = payload.data || {};
+            const traffic = data.traffic || {};
+            const reports = data.reports || {};
+            const summary = traffic.summary || {};
+            const health = reports.health || {};
+
+            renderTraffic(summary);
+            renderRuntime(data.runtime || {});
+
+            setText('reportCache', reports.report_cache_pending_format || '0');
+            setText('activeDevice', reports.active_5m || 0);
+
+            const reportCacheHealth = document.getElementById('reportCacheHealth');
+            reportCacheHealth.textContent = statusText(health.report_cache_pending);
+            reportCacheHealth.className = 'sub ' + statusClass(health.report_cache_pending);
+
+            renderRows('queueRows', (data.queues && data.queues.items) || [], [
+                function (row) { return row.queue || '-'; },
+                function (row) { return row.waiting || 0; },
+                function (row) {
+                    return '<span class="' + statusClass(row.health) + '">' + statusText(row.health) + '</span>';
+                },
+                function (row) { return row.waiting_key || '-'; }
+            ]);
+
+            renderRows('protocolRows', traffic.protocols || [], [
+                function (row) { return row.protocol || '-'; },
+                function (row) { return row.rx_format || '0 B'; },
+                function (row) { return row.tx_format || '0 B'; },
+                function (row) { return row.total_packets || 0; },
+                function (row) { return row.report_packets || 0; }
+            ]);
+
+            setText('lastUpdate', '最后刷新：' + (data.time || '-'));
+        } catch (e) {
+            error.textContent = e.message || '监控数据读取失败';
+            error.style.display = 'block';
+        }
+    }
+
+    document.getElementById('refresh').addEventListener('click', loadData);
+    document.getElementById('minutes').addEventListener('change', loadData);
+
+    loadData();
+    setInterval(loadData, 5000);
+</script>
+</body>
+</html>

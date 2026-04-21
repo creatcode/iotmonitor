@@ -16,7 +16,7 @@ class TrafficMonitor
     /**
      * 分钟统计保留时间
      */
-    protected static $retentionSeconds = 172800;
+    protected static $retentionSeconds = 86400;
 
     /**
      * 监控开关
@@ -184,15 +184,21 @@ class TrafficMonitor
 
         try {
             foreach ($data as $minute => $fields) {
-                self::$store->incrementMinute($minute, $fields, self::$retentionSeconds);
+                self::$store->incrementMinute((string)$minute, $fields, self::$retentionSeconds);
             }
         } catch (\Throwable $e) {
             self::mergeBack($data);
-            error_log('[traffic-monitor] flush fail: ' . $e->getMessage());
+            ManagerHelper::log(
+                'monitor.log',
+                '[' . date('Y-m-d H:i:s') . '] traffic flush fail: File:' . $e->getFile() .
+                    ' Line:' . $e->getLine() .
+                    ' Msg:' . $e->getMessage()
+            );
         } finally {
             self::$flushing = false;
         }
     }
+
 
     /**
      * 写入失败时放回缓冲区，避免丢失统计
