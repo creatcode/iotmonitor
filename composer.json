@@ -1,14 +1,36 @@
 {
   "name": "creatcode/iotmonitor",
-  "description": "Traffic monitor for Workerman/Webman protocol services.",
+  "description": "IoT protocol utilities and traffic monitor for Webman and Workerman TCP services.",
   "type": "library",
+  "keywords": [
+    "iot",
+    "webman",
+    "workerman",
+    "tcp",
+    "protocol",
+    "gateway-worker",
+    "traffic-monitor",
+    "redis"
+  ],
   "license": "MIT",
+  "authors": [
+    {
+      "name": "CreatCode",
+      "role": "Developer"
+    }
+  ],
   "require": {
     "php": ">=7.2",
-    "workerman/webman-framework": "^1.5",
+    "ext-redis": "*",
     "webman/think-cache": "^1.0",
     "webman/think-orm": "^1.1",
+    "workerman/webman-framework": "^1.5",
     "workerman/workerman": "^4.0 || ^5.0"
+  },
+  "suggest": {
+    "ext-event": "Improve Workerman network performance in production.",
+    "webman/gateway-worker": "Required when using this package with GatewayWorker protocol services.",
+    "webman/redis-queue": "Required when reading redis-queue metrics in monitor overview."
   },
   "autoload": {
     "psr-4": {
