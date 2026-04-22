@@ -3,10 +3,18 @@
 namespace plugin\iotmonitor\app\controller;
 
 use CreatCode\IotMonitor\Monitor\OverviewReader;
+use plugin\iotmonitor\app\middleware\MonitorAccess;
 use support\Request;
 
 class IndexController
 {
+    /**
+     * 中间件
+     */
+    protected $middleware = [
+        MonitorAccess::class,
+    ];
+
     /**
      * 监控页面
      *
@@ -14,12 +22,7 @@ class IndexController
      */
     public function index(Request $request)
     {
-        $showiot = $request->get('showiot');
-        $view = 'index/index';
-        if ($showiot === 'overview') {
-            $view = 'index/overview';
-        }
-        return raw_view($view);
+        return view('index/index');
     }
 
 
@@ -30,10 +33,15 @@ class IndexController
      */
     public function overview(Request $request)
     {
+        $allowMinutes = [5, 60, 360, 1440];
         $minutes = (int)$request->get('minutes', 60);
 
+        if (!in_array($minutes, $allowMinutes)) {
+            $minutes = 60;
+        }
+
         return json([
-            'code' => 0,
+            'code' => 200,
             'msg' => 'ok',
             'data' => (new OverviewReader())->build($minutes),
         ]);
