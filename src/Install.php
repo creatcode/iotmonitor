@@ -77,6 +77,22 @@ class Install
             }
 
             remove_dir($path);
+
+            $parentDest = dirname($dest);
+            while (substr_count($parentDest, '/') >= 2) {
+                $parentPath = base_path() . '/' . $parentDest;
+                if (!is_dir($parentPath)) {
+                    break;
+                }
+
+                $files = scandir($parentPath);
+                if ($files === false || count($files) > 2) {
+                    break;
+                }
+
+                rmdir($parentPath);
+                $parentDest = dirname($parentDest);
+            }
         }
     }
 }

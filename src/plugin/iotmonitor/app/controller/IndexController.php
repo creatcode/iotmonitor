@@ -9,13 +9,6 @@ use support\Request;
 class IndexController
 {
     /**
-     * 中间件
-     */
-    protected $middleware = [
-        MonitorAccess::class,
-    ];
-
-    /**
      * 监控页面
      *
      * @param Request $request

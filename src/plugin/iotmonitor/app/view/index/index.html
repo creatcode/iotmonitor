@@ -3,11 +3,11 @@
 
 <head>
 	<meta charset="utf-8">
-	<title>通信监控中心</title>
+	<title>数据监控中心</title>
 	<meta name="renderer" content="webkit">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-	<link rel="stylesheet" href="/app/iotmonitor/layui/css/layui.css">
+	<meta name="viewport"
+		content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
 	<style>
 		:root {
 			--page-bg: #f5f8fc;
@@ -29,10 +29,16 @@
 			box-sizing: border-box;
 		}
 
+		html,
 		body {
-			height: 100vh;
+			min-height: 100%;
+		}
+
+		body {
+			min-height: 100vh;
 			margin: 0;
-			overflow: hidden;
+			overflow-x: auto;
+			overflow-y: auto;
 			background:
 				linear-gradient(90deg, rgba(47, 109, 246, .05) 1px, transparent 1px),
 				linear-gradient(0deg, rgba(47, 109, 246, .04) 1px, transparent 1px),
@@ -42,14 +48,15 @@
 			font-family: "Inter", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
 		}
 
+
 		.monitor-shell {
-			height: 100vh;
+			min-height: 100vh;
 			padding: 18px;
-			overflow: hidden;
+			overflow: visible;
 		}
 
 		.monitor-frame {
-			height: calc(100vh - 36px);
+			min-height: calc(100vh - 36px);
 			display: flex;
 			flex-direction: column;
 			padding: 18px;
@@ -58,8 +65,9 @@
 			background: rgba(255, 255, 255, .56);
 			box-shadow: 0 20px 60px rgba(45, 70, 105, .12);
 			backdrop-filter: blur(18px);
-			overflow: hidden;
+			overflow: visible;
 		}
+
 
 		.topbar {
 			display: grid;
@@ -356,9 +364,9 @@
 		.tab-panel.active {
 			display: flex;
 			flex-direction: column;
-			flex: 1;
+			flex: none;
 			min-height: 0;
-			overflow: hidden;
+			overflow: visible;
 		}
 
 		.tab-panel.loading .metric-card,
@@ -465,9 +473,10 @@
 			grid-template-columns: minmax(0, 1.55fr) minmax(320px, .85fr);
 			gap: 12px;
 			margin-top: 12px;
-			flex: 1;
+			flex: none;
 			min-height: 0;
 		}
+
 
 		.content-grid.equal {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -510,14 +519,15 @@
 		}
 
 		.chart-lg {
-			height: 100%;
-			min-height: 200px;
+			height: clamp(260px, 34vh, 420px);
+			min-height: 260px;
 		}
 
 		.chart-md {
-			height: 100%;
-			min-height: 200px;
+			height: clamp(240px, 30vh, 360px);
+			min-height: 240px;
 		}
+
 
 		.data-grid {
 			display: grid;
@@ -558,23 +568,35 @@
 			min-width: 800px;
 		}
 
-		.layui-table thead tr {
+		.monitor-table {
+			width: 100%;
+			border-collapse: collapse;
+			border-spacing: 0;
+			background: #fff;
+			color: var(--text);
+		}
+
+		.monitor-table thead tr {
 			background: #f7faff;
 		}
 
-		.layui-table th {
+		.monitor-table th {
 			position: sticky;
 			top: 0;
 			z-index: 10;
-			background: #f7faff !important;
+			background: #f7faff;
 			color: #526174;
 			font-weight: 700;
 		}
 
-		.layui-table td,
-		.layui-table th {
+		.monitor-table td,
+		.monitor-table th {
+			padding: 8px 12px;
 			font-size: 13px;
-			border-color: #edf2f7;
+			line-height: 1.5;
+			text-align: left;
+			border: 1px solid #edf2f7;
+			white-space: nowrap;
 		}
 
 		.status-badge {
@@ -607,6 +629,38 @@
 			padding: 26px 12px;
 			text-align: center;
 			color: var(--soft);
+		}
+
+		.monitor-toast {
+			position: fixed;
+			left: 50%;
+			top: calc(24px + env(safe-area-inset-top));
+			z-index: 2147483647;
+			width: max-content;
+			max-width: calc(100vw - 32px);
+			padding: 10px 14px;
+			border-radius: 8px;
+			background: rgba(20, 32, 51, .92);
+			color: #fff;
+			font-size: 13px;
+			line-height: 1.5;
+			text-align: center;
+			box-shadow: 0 14px 32px rgba(20, 32, 51, .18);
+			opacity: 0;
+			transform: translate3d(-50%, -8px, 0);
+			transition: opacity .2s ease, transform .2s ease;
+			pointer-events: none;
+			white-space: normal;
+			word-break: break-word;
+		}
+
+		.monitor-toast.show {
+			opacity: 1;
+			transform: translate3d(-50%, 0, 0);
+		}
+
+		.monitor-toast-error {
+			background: rgba(206, 43, 74, .94);
 		}
 
 		@keyframes riseIn {
@@ -671,14 +725,64 @@
 		}
 
 		@media screen and (max-width: 760px) {
+
+			html,
+			body {
+				height: auto;
+				min-height: 100%;
+				overflow-x: hidden;
+				overflow-y: auto;
+			}
+
+			body {
+				-webkit-overflow-scrolling: touch;
+			}
+
 			.monitor-shell {
+				height: auto;
+				min-height: 100vh;
+				overflow: visible;
 				padding: 10px;
 			}
 
 			.monitor-frame {
-				height: calc(100vh - 20px);
+				height: auto;
+				min-height: calc(100vh - 20px);
+				overflow: visible;
 				padding: 12px;
 				border-radius: 14px;
+			}
+
+			.tab-panel.active {
+				flex: none;
+				min-height: auto;
+				overflow: visible;
+			}
+
+			.content-grid {
+				flex: none;
+				min-height: auto;
+			}
+
+			.panel-card {
+				min-height: auto;
+			}
+
+			.panel-body {
+				flex: none;
+				min-height: auto;
+			}
+
+			.chart-lg,
+			.chart-md {
+				height: 260px;
+				min-height: 260px;
+			}
+
+			.table-scroll {
+				max-width: 100%;
+				overflow: auto;
+				-webkit-overflow-scrolling: touch;
 			}
 
 			.hero {
@@ -725,7 +829,7 @@
 				<aside class="side-status">
 					<div class="status-title">
 						<span>运行状态</span>
-						<span class="refresh-chip" id="refresh-state">5s 刷新</span>
+						<span class="refresh-chip" id="refresh-state">10s 刷新</span>
 					</div>
 					<div class="status-actions">
 						<button class="action-btn" type="button" id="refresh-now">立即刷新</button>
@@ -813,7 +917,7 @@
 						</div>
 						<div class="panel-body">
 							<div class="table-scroll">
-								<table class="layui-table" lay-size="sm">
+								<table class="monitor-table">
 									<thead>
 										<tr>
 											<th>窗口</th>
@@ -883,7 +987,7 @@
 						</div>
 						<div class="panel-body">
 							<div class="table-scroll">
-								<table class="layui-table" lay-size="sm">
+								<table class="monitor-table">
 									<thead>
 										<tr>
 											<th>协议</th>
@@ -950,7 +1054,7 @@
 						</div>
 						<div class="panel-body">
 							<div class="table-scroll">
-								<table class="layui-table" lay-size="sm">
+								<table class="monitor-table">
 									<thead>
 										<tr>
 											<th>队列</th>
@@ -1022,7 +1126,7 @@
 									<div class="data-value" id="gateway-lora">0</div>
 								</div>
 								<div class="data-card">
-									<div class="data-label">温度网关</div>
+									<div class="data-label">Temp 网关</div>
 									<div class="data-value" id="gateway-temp">0</div>
 								</div>
 								<div class="data-card">
@@ -1041,24 +1145,62 @@
 		</div>
 	</div>
 
+	<script src="/app/iotmonitor/js/jquery4.min.js"></script>
 	<script src="/app/iotmonitor/js/echarts.min.js"></script>
 	<script src="/app/iotmonitor/js/macarons.js"></script>
-	<script src="/app/iotmonitor/layui/layui.js"></script>
 	<script>
-		layui.use(['layer'], function () {
-			var $ = layui.jquery;
-			var layer = layui.layer;
+		$(function () {
 			var echarts = window.echarts;
+
+			// 禁止移动端双指缩放
+			document.addEventListener('touchmove', function (event) {
+				if (event.touches && event.touches.length > 1) {
+					event.preventDefault();
+				}
+			}, { passive: false });
+
+			// 兼容 iOS Safari 的手势缩放事件
+			document.addEventListener('gesturestart', function (event) {
+				event.preventDefault();
+			});
+
+			function showMsg(message, type) {
+				var text = message || '操作失败';
+
+				$('.monitor-toast').remove();
+
+				var $msg = $('<div></div>', {
+					'class': 'monitor-toast' + (type === 'error' ? ' monitor-toast-error' : ''),
+					text: text
+				});
+				$('html').append($msg);
+
+				requestAnimationFrame(function () {
+					$msg.addClass('show');
+				});
+
+				setTimeout(function () {
+					$msg.removeClass('show');
+
+					setTimeout(function () {
+						$msg.remove();
+					}, 240);
+				}, 2600);
+			}
+
 			if (!echarts) {
-				layer.msg('ECharts 加载失败，请检查 echarts.min.js 是否存在', { icon: 2 });
+				showMsg('ECharts 加载失败，请检查 echarts.min.js 是否存在', 'error');
 				return;
 			}
 			var refreshTimer = null;
 			var progressTimer = null;
-			var refreshInterval = 5000;
+			var refreshInterval = 10000;
+			var refreshIntervalText = Math.max(1, Math.round(refreshInterval / 1000)) + 's 刷新';
 			var monitorMinutes = 60;
 			var paused = false;
 			var loading = false;
+			var failCount = 0;
+			var maxFailCount = 3;
 			var lastRefreshAt = Date.now();
 			var charts = {
 				traffic: echarts.init(document.getElementById('traffic-chart'), 'macarons'),
@@ -1104,11 +1246,30 @@
 				});
 			}
 
+			function renderEmptyCharts() {
+				// 停止刷新后清空图表，避免旧数据被误认为当前数据
+				Object.keys(charts).forEach(function (key) {
+					charts[key].clear();
+					charts[key].setOption({
+						title: {
+							text: '暂无数据',
+							left: 'center',
+							top: 'middle',
+							textStyle: {
+								color: '#8b99aa',
+								fontSize: 14,
+								fontWeight: 400
+							}
+						}
+					});
+				});
+			}
+
 			function setLoading(active) {
 				loading = active;
 				$('#refresh-state')
 					.toggleClass('loading', active)
-					.text(active ? '读取中' : (paused ? '已暂停' : '5s 刷新'));
+					.text(active ? '读取中' : (paused ? '已暂停' : refreshIntervalText));
 				$('.tab-panel.active').toggleClass('loading skeleton', active);
 			}
 
@@ -1122,7 +1283,20 @@
 				$('#refresh-bar').css('width', percent + '%');
 			}
 
+			function stopRefreshTimer() {
+				if (refreshTimer) {
+					clearInterval(refreshTimer);
+					refreshTimer = null;
+				}
+
+				// 连续失败后停止自动刷新，避免接口异常时持续请求
+				renderEmptyCharts();
+				$('#refresh-state').removeClass('loading').text('刷新已停止');
+				$('#refresh-bar').css('width', '0');
+			}
+
 			function resetRefreshTimer() {
+				failCount = 0;
 				if (refreshTimer) {
 					clearInterval(refreshTimer);
 				}
@@ -1400,17 +1574,31 @@
 					dataType: 'json',
 					success: function (res) {
 						if (!res || res.code !== 200) {
-							layer.msg((res && res.msg) || '监控数据读取失败', { icon: 2 });
+							failCount++;
+							showMsg((res && res.msg) || '监控数据读取失败', 'error');
+							if (failCount >= maxFailCount) {
+								stopRefreshTimer();
+							}
 							return;
 						}
 						renderMonitor(res.data || {});
+						failCount = 0;
 						lastRefreshAt = Date.now();
 					},
 					error: function () {
-						layer.msg('监控接口请求失败', { icon: 2 });
+						failCount++;
+						showMsg('监控接口请求失败', 'error');
+						if (failCount >= maxFailCount) {
+							stopRefreshTimer();
+						}
 					},
 					complete: function () {
 						setLoading(false);
+						if (!refreshTimer && failCount >= maxFailCount) {
+							$('#refresh-state').removeClass('loading').text('刷新已停止');
+							$('#refresh-bar').css('width', '0');
+							return;
+						}
 						updateRefreshProgress();
 					}
 				});
@@ -1436,7 +1624,7 @@
 			$('#pause-refresh').on('click', function () {
 				paused = !paused;
 				$(this).text(paused ? '继续' : '暂停');
-				$('#refresh-state').text(paused ? '已暂停' : '5s 刷新');
+				$('#refresh-state').text(paused ? '已暂停' : refreshIntervalText);
 				updateRefreshProgress();
 			});
 
