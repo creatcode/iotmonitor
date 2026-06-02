@@ -3,7 +3,6 @@
 namespace plugin\iotmonitor\app\controller;
 
 use CreatCode\IotMonitor\Monitor\OverviewReader;
-use plugin\iotmonitor\app\middleware\MonitorAccess;
 use support\Request;
 
 class IndexController

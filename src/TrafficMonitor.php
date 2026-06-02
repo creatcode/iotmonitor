@@ -56,6 +56,11 @@ class TrafficMonitor
     protected static $cachedMinute = '';
 
     /**
+     * 最大缓冲区分钟数，超过后删除旧数据
+     */
+    protected static $maxBufferMinutes = 10;
+
+    /**
      * 初始化流量监控
      */
     public static function init(StoreInterface $store, array $config = []): void
@@ -213,6 +218,12 @@ class TrafficMonitor
             foreach ($fields as $field => $value) {
                 self::$buffer[$minute][$field] = (self::$buffer[$minute][$field] ?? 0) + $value;
             }
+        }
+
+        // Redis 长时间异常时限制内存占用，只保留最近几分钟统计
+        if (count(self::$buffer) > self::$maxBufferMinutes) {
+            ksort(self::$buffer);
+            self::$buffer = array_slice(self::$buffer, -self::$maxBufferMinutes, null, true);
         }
     }
 }

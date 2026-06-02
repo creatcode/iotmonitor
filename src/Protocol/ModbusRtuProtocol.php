@@ -42,7 +42,7 @@ class ModbusRtuProtocol extends BaseProtocol
 
         $ascTag = substr($buffer, 0, 4);
         $extraLength = static::extraPacketLength($ascTag);
-        
+
         if ($extraLength !== null) {
             $frameLength = $extraLength;
         } else {
@@ -57,6 +57,11 @@ class ModbusRtuProtocol extends BaseProtocol
 
         if ($recvLen < $frameLength) {
             return 0;
+        }
+
+        // 仅普通 RTU 报文按配置校验 CRC，imei/ping 等特殊包不参与
+        if ($extraLength === null && self::shouldCheckCrc() && !self::checkCrc($buffer, $frameLength)) {
+            return self::closeInvalidConnection($connection);
         }
 
         return $frameLength;
@@ -151,6 +156,34 @@ class ModbusRtuProtocol extends BaseProtocol
             self::$crcTable[$i] = $crc;
         }
     }
+
+    /**
+     * 是否校验 Modbus RTU CRC，默认关闭以兼容非标准设备报文
+     */
+    protected static function shouldCheckCrc(): bool
+    {
+        return !empty(static::protocolConfig('rtu_crc_check', false));
+    }
+
+    /**
+     * 校验 Modbus RTU CRC16
+     *
+     * @param string $buffer 原始二进制报文
+     * @param int $frameLength 完整帧长度
+     * @return bool
+     */
+    protected static function checkCrc(string $buffer, int $frameLength): bool
+    {
+        if ($frameLength < 4 || strlen($buffer) < $frameLength) {
+            return false;
+        }
+
+        $crc = self::crc16Modbus(substr($buffer, 0, $frameLength - 2));
+        $receiveCrc = ord($buffer[$frameLength - 2]) | (ord($buffer[$frameLength - 1]) << 8);
+
+        return $crc === $receiveCrc;
+    }
+
 
     /**
      * 查表计算 CRC16

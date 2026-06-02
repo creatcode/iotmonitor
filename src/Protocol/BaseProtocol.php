@@ -157,4 +157,17 @@ abstract class BaseProtocol
     {
         return static::PROTOCOL_NAME;
     }
+
+    /**
+     * 读取协议配置项
+     *
+     * @param string $name 配置名
+     * @param mixed $default 默认值
+     * @return mixed
+     */
+    protected static function protocolConfig(string $name, $default = null)
+    {
+        $config = static::pluginConfig();
+        return $config['protocol'][$name] ?? $default;
+    }
 }

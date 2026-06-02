@@ -24,6 +24,8 @@ return [
     ],
 
     'protocol' => [
+        // 是否校验 Modbus RTU CRC，默认关闭以兼容部分设备非标准报文
+        'rtu_crc_check' => false,
         // 协议特殊包长度，key为包类型标识，value为完整包长
         'extra_packets' => [
             'imei' => 19,

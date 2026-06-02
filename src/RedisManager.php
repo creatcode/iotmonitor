@@ -41,7 +41,7 @@ class RedisManager
     public static function get(bool $forceReconnect = false)
     {
         if ($forceReconnect || self::$redis === null) {
-            self::$redis = Cache::store('redis')->handler();
+            self::$redis = Cache::store('redis', $forceReconnect)->handler();
             self::$lastPingAt = 0;
         }
 
@@ -91,6 +91,14 @@ class RedisManager
      */
     public static function reconnect()
     {
+        if (self::$redis) {
+            try {
+                self::$redis->close();
+            } catch (\Throwable $e) {
+                // 连接已断开时关闭失败可忽略
+            }
+        }
+
         self::$redis = null;
         self::$lastPingAt = 0;
 
