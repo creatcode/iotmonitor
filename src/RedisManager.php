@@ -168,7 +168,12 @@ class RedisManager
             try {
                 return $callback(self::reconnect());
             } catch (\Throwable $retryException) {
-                ManagerHelper::log('redis.log', '[' . date('Y-m-d H:i:s') . '] retry_fail: ' . $retryException->getMessage());
+                // 重试成功前又失败，记录两次异常的完整链路
+                ManagerHelper::log(
+                    'redis.log',
+                    '[' . date('Y-m-d H:i:s') . '] retry_fail: ' . $retryException->getMessage() .
+                        ' | first_fail: ' . $e->getMessage()
+                );
 
                 if ($swallowException) {
                     return $default;
@@ -189,19 +194,24 @@ class RedisManager
      */
     public static function pipeline(callable $callback): array
     {
-        return self::call(function ($redis) use ($callback) {
-            $redis->multi(\Redis::PIPELINE);
-
-            try {
-                $callback($redis);
-                return $redis->exec();
-            } catch (\Throwable $e) {
-                // pipeline 组包阶段异常时重置连接，避免连接残留在批量命令状态
-                self::$redis = null;
-                self::$lastPingAt = 0;
-                throw $e;
-            }
-        });
+        try {
+            return self::call(function ($redis) use ($callback) {
+                $redis->multi(\Redis::PIPELINE);
+                try {
+                    $callback($redis);
+                    return $redis->exec();
+                } catch (\Throwable $e) {
+                    // pipeline 组包阶段异常时重置连接，避免连接残留在批量命令状态
+                    self::$redis = null;
+                    self::$lastPingAt = 0;
+                    throw $e;
+                }
+            });
+        } catch (\Throwable $e) {
+            // call() 已处理连接异常重试，此处统一打日志后抛出
+            ManagerHelper::log('redis.log', '[' . date('Y-m-d H:i:s') . '] pipeline_fail: ' . $e->getMessage());
+            throw $e;
+        }
     }
 
     /**

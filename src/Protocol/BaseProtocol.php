@@ -6,6 +6,7 @@ namespace CreatCode\IotMonitor\Protocol;
 
 use CreatCode\IotMonitor\TrafficMonitor;
 use Workerman\Connection\ConnectionInterface;
+use CreatCode\IotMonitor\ManagerHelper;
 
 /**
  * 协议基类
@@ -126,15 +127,9 @@ abstract class BaseProtocol
      */
     protected static function pluginConfig(): array
     {
-        if (function_exists('config')) {
-            $config = config('plugin.creatcode.iotmonitor.app');
-            if (is_array($config)) {
-                return $config;
-            }
-        }
-
-        return [];
+        return ManagerHelper::pluginConfig();
     }
+
 
     /**
      * 非法数据包处理：关闭连接并静默返回

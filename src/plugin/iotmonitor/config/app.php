@@ -1,9 +1,6 @@
 <?php
 
 return [
-    // 插件启用开关
-    'enable' => true,
-
     // 控制器后缀
     'controller_suffix' => 'Controller',
 

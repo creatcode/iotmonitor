@@ -131,6 +131,12 @@ class ModbusRtuProtocol extends BaseProtocol
             case self::MASK_WRITE_REGISTER:
                 $frameLength = 10;
                 break;
+            case self::READ_WRITE_MULTIPLE_REGISTERS:
+                $byteCount = ord($binaryData[2]);
+                if ($byteCount >= 2 && $byteCount <= 250) {
+                    $frameLength = 5 + $byteCount;
+                }
+                break;
         }
 
         return $frameLength;
@@ -162,8 +168,14 @@ class ModbusRtuProtocol extends BaseProtocol
      */
     protected static function shouldCheckCrc(): bool
     {
-        return !empty(static::protocolConfig('rtu_crc_check', false));
+        $value = static::protocolConfig('rtu_crc_check', false);
+        if (is_bool($value)) {
+            return $value;
+        }
+        // 字符串容错：'0'/'false'/'off'/'no'/'close' 视为关闭
+        return !in_array(strtolower(trim((string)$value)), ['0', 'false', 'off', 'no', 'close'], true);
     }
+
 
     /**
      * 校验 Modbus RTU CRC16
