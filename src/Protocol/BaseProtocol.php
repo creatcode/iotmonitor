@@ -66,10 +66,19 @@ abstract class BaseProtocol
      */
     public static function encode($buffer)
     {
-        $buffer = preg_replace('/[^a-fA-F0-9]/', '', $buffer);
+        $buffer = (string)$buffer;
+
         if ($buffer === '') {
             return '';
         }
+
+        if (!ctype_xdigit($buffer)) {
+            $buffer = preg_replace('/[^a-fA-F0-9]/', '', $buffer);
+            if ($buffer === '') {
+                return '';
+            }
+        }
+
         if ((strlen($buffer) & 1) !== 0) {
             $buffer = '0' . $buffer;
         }

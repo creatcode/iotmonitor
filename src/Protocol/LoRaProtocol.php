@@ -26,16 +26,30 @@ class LoRaProtocol extends BaseProtocol
     public static function input($buffer, ConnectionInterface $connection)
     {
         $length = strlen($buffer);
+
+        if ($length === 0) {
+            return 0;
+        }
+
+        // LoRa 帧必须从固定起始符开始，错误前缀无法在协议层安全跳过，直接关闭
+        if (ord($buffer[0]) !== self::START_FLAG) {
+            return self::closeInvalidConnection($connection);
+        }
+
+        if ($length < 3) {
+            return 0;
+        }
+
+        // 第 3 字节为方案码，长度足够后即可判定协议是否匹配
+        if (ord($buffer[2]) !== self::SCHEME) {
+            return self::closeInvalidConnection($connection);
+        }
+
         if ($length < 7) {
             return 0;
         }
 
-        // 起始符或方案错误
-        if (ord($buffer[0]) !== self::START_FLAG || ord($buffer[2]) !== self::SCHEME) {
-            return self::closeInvalidConnection($connection);
-        }
-
-        // 载荷长度判定
+        // 载荷至少包含两个命令字节，最大长度限制避免异常大包占用内存
         $payloadLength = ord($buffer[1]);
         if ($payloadLength < 2 || $payloadLength > 250) {
             return self::closeInvalidConnection($connection);
@@ -51,13 +65,13 @@ class LoRaProtocol extends BaseProtocol
             return self::closeInvalidConnection($connection);
         }
 
-        // 累加和校验
+        // 累加和校验：起始符到载荷末尾参与计算，不包含校验位和结尾符
         $checksum = 0;
         for ($i = 0; $i < $frameLength - 2; $i++) {
             $checksum += ord($buffer[$i]);
         }
-        $checksum &= 0xFF;
-        if ($checksum !== ord($buffer[$frameLength - 2])) {
+
+        if (($checksum & 0xFF) !== ord($buffer[$frameLength - 2])) {
             return self::closeInvalidConnection($connection);
         }
 
@@ -73,12 +87,20 @@ class LoRaProtocol extends BaseProtocol
     protected static function decodePayload($buffer): array
     {
         $type = 'report';
-        $command1 = $buffer[3];
-        $command2 = $buffer[4];
-        if (ord($command1) === 0x04 && ord($command2) === 0x01) {
-            $type = 'imei';
-        } elseif (ord($command1) === 0x04 && ord($command2) === 0x02) {
-            $type = 'ping';
+        // $command1 = $buffer[3];
+        // $command2 = $buffer[4];
+        // if (ord($command1) === 0x04 && ord($command2) === 0x01) {
+        //     $type = 'imei';
+        // } elseif (ord($command1) === 0x04 && ord($command2) === 0x02) {
+        //     $type = 'ping';
+        // }
+        if (isset($buffer[4])) {
+            $command = substr($buffer, 3, 2);
+            if ($command === "\x04\x01") {
+                $type = 'imei';
+            } elseif ($command === "\x04\x02") {
+                $type = 'ping';
+            }
         }
 
         $data = bin2hex($buffer);

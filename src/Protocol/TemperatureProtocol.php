@@ -79,17 +79,26 @@ class TemperatureProtocol extends BaseProtocol
      */
     public static function validateReportPacket($binaryData)
     {
-        $packet = substr($binaryData, 0, self::REPORT_PACKET_SIZE);
-        $calculatedFcs = 0;
-        $calculatedFcs += ord($packet[0]);
-        $calculatedFcs += ord($packet[1]);
-        $calculatedFcs += ord($packet[2]);
-        $calculatedFcs += ord($packet[3]);
-        $calculatedFcs += ord($packet[4]);
-        $calculatedFcs &= 0xFF;
+        // $packet = substr($binaryData, 0, self::REPORT_PACKET_SIZE);
+        // $calculatedFcs = 0;
+        // $calculatedFcs += ord($packet[0]);
+        // $calculatedFcs += ord($packet[1]);
+        // $calculatedFcs += ord($packet[2]);
+        // $calculatedFcs += ord($packet[3]);
+        // $calculatedFcs += ord($packet[4]);
+        // $calculatedFcs &= 0xFF;
 
-        $receivedFcs = ord($packet[5]);
-        if ($calculatedFcs !== $receivedFcs) {
+        // $receivedFcs = ord($packet[5]);
+        // if ($calculatedFcs !== $receivedFcs) {
+        //     return false;
+        // }
+
+        $calculatedFcs = 0;
+        for ($i = 0; $i < 5; $i++) {
+            $calculatedFcs += ord($binaryData[$i]);
+        }
+
+        if (($calculatedFcs & 0xFF) !== ord($binaryData[5])) {
             return false;
         }
 

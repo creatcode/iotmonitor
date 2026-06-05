@@ -66,6 +66,10 @@ return [
     ],
 
     'protocol' => [
+        // 是否校验 Modbus RTU CRC，默认关闭以兼容部分设备非标准报文
+        'rtu_crc_check' => false,
+
+        // 协议特殊包长度，key为包类型标识，value为完整包长
         'extra_packets' => [
             'imei' => 19,
             'ping' => 4,
@@ -87,6 +91,8 @@ return [
 - `traffic.enable`：是否启用协议流量统计，默认关闭。
 - `traffic.flush_interval`：进程内统计数据写入 Redis 的间隔，单位秒。
 - `traffic.retention_seconds`：分钟流量统计在 Redis 中的保留时间。
+- `protocol.rtu_crc_check`：是否校验 Modbus RTU CRC，默认关闭以兼容部分非标准设备。
+- `protocol.extra_packets`：协议特殊包长度配置，当前用于识别 `imei`、`ping` 等特殊包。
 - 修改配置后需要重启 Webman / GatewayWorker 常驻进程。
 
 插件不再读取 `.env` 中的 `monitor.traffic_enable`，也不依赖 `TRAFFIC_MONITOR_ENABLED` 常量。
@@ -105,6 +111,13 @@ CreatCode\IotMonitor\Protocol
 - `ModbusRtuProtocol`
 - `TemperatureProtocol`
 - `LoRaProtocol`
+
+协议行为说明：
+
+- `ModbusTcpProtocol`：按 MBAP 头部长度字段拆包，协议标识符必须为 `0x0000`。
+- `ModbusRtuProtocol`：按功能码推断 RTU 响应帧长度；开启 `protocol.rtu_crc_check` 后校验 CRC16。
+- `TemperatureProtocol`：固定 7 字节上报包，按前 5 字节累加和校验第 6 字节。
+- `LoRaProtocol`：按 `0x6C` 起始符、`0x11` 方案码、载荷长度、累加和、`0x16` 结尾符校验；载荷长度范围为 2 到 250 字节。
 
 在 GatewayWorker 或 Workerman TCP 服务中指定协议类即可：
 
@@ -197,6 +210,13 @@ RedisManager::pipeline(function ($redis) {
     $redis->expire('demo', 60);
 });
 ```
+
+连接重试规则：
+
+- 静态读命令调用，例如 `RedisManager::hGetAll()`、`RedisManager::lLen()`，连接异常时会自动重连并重试一次。
+- 写入、递增、弹出队列等非幂等命令默认不自动重试，避免服务端已执行但客户端未收到响应时重复执行。
+- `pipeline()` 默认不自动重试；只有确认批量命令可重复执行时，才传入第二个参数 `true`。
+- 需要自行控制异常处理时，可使用 `RedisManager::call($callback, $default, $swallowException, $retryOnConnectionException)`。
 
 ## 日志
 

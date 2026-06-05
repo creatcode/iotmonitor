@@ -11,7 +11,19 @@ use Workerman\Connection\ConnectionInterface;
  */
 class ModbusRtuProtocol extends BaseProtocol
 {
+    /**
+     * CRC 表
+     *
+     * @return array
+     */
     private static $crcTable = null;
+
+    /**
+     * 是否校验 CRC
+     *
+     * @return bool
+     */
+    private static $checkCrc = null;
 
     const READ_COILS = 1;
     const READ_INPUT_DISCRETES = 2;
@@ -131,12 +143,6 @@ class ModbusRtuProtocol extends BaseProtocol
             case self::MASK_WRITE_REGISTER:
                 $frameLength = 10;
                 break;
-            case self::READ_WRITE_MULTIPLE_REGISTERS:
-                $byteCount = ord($binaryData[2]);
-                if ($byteCount >= 2 && $byteCount <= 250) {
-                    $frameLength = 5 + $byteCount;
-                }
-                break;
         }
 
         return $frameLength;
@@ -168,12 +174,26 @@ class ModbusRtuProtocol extends BaseProtocol
      */
     protected static function shouldCheckCrc(): bool
     {
+        if (self::$checkCrc !== null) {
+            return self::$checkCrc;
+        }
+
         $value = static::protocolConfig('rtu_crc_check', false);
         if (is_bool($value)) {
-            return $value;
+            return self::$checkCrc = $value;
         }
-        // 字符串容错：'0'/'false'/'off'/'no'/'close' 视为关闭
-        return !in_array(strtolower(trim((string)$value)), ['0', 'false', 'off', 'no', 'close'], true);
+
+        if (is_numeric($value)) {
+            return self::$checkCrc = ((int)$value !== 0);
+        }
+
+        if (!is_string($value)) {
+            return self::$checkCrc = false;
+        }
+
+        // 字符串容错：空字符串和常见关闭值均视为关闭
+        $value = strtolower(trim($value));
+        return self::$checkCrc = ($value !== '' && !in_array($value, ['0', 'false', 'off', 'no', 'close'], true));
     }
 
 
