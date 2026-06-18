@@ -1,32 +1,33 @@
 <?php
 
 return [
-    // 监控功能总开关，仅控制插件监控数据采集；不影响数据库/Redis 探活和协议配置读取
+    // 监控功能总开关，仅控制插件监控数据采集；不影响数据库/Redis 探活和协议配置读取。
     'enable' => false,
 
     'traffic' => [
-        // 是否启用接口流量监控；同时受上方监控功能总开关控制
+        // 是否启用接口流量监控；同时受上方监控功能总开关控制。
         'enable' => false,
 
-        // 刷新间隔，单位秒
+        // 刷新间隔，单位秒。
         'flush_interval' => 5,
 
-        // 监控数据保留时间，单位秒
+        // 监控数据保留时间，单位秒。
         'retention_seconds' => 86400,
     ],
 
     'db' => [
-        // 数据库探活间隔，单位秒
+        // 数据库探活间隔，单位秒。
         'db_ping_interval' => 30,
 
-        // Redis探活间隔，单位秒
+        // Redis 探活间隔，单位秒。
         'redis_ping_interval' => 15,
     ],
 
     'protocol' => [
-        // 是否校验 Modbus RTU CRC，默认关闭以兼容部分设备非标准报文
+        // 是否校验 Modbus RTU CRC，默认关闭以兼容部分设备非标准报文。
         'rtu_crc_check' => false,
-        // 协议特殊包长度，key为包类型标识，value为完整包长
+
+        // 协议特殊包长度，key 为包类型标识，value 为完整包长度。
         'extra_packets' => [
             'imei' => 19,
             'ping' => 4,
@@ -34,13 +35,19 @@ return [
     ],
 
     'overview' => [
-        // 需要监控的redis-queue队列名
+        // 需要监控的 redis-queue 队列名。
         'queues' => [
             'login_command',
-            'check_report_data',
+            'exam_report_data',
+            'energy_data_check',
+            'energy_record',
+            'dev_link',
+            'dev_alarm',
+            'food_command',
+            'third_device',
         ],
 
-        // 监控总览依赖的Redis key
+        // 监控总览依赖的 Redis key。
         'redis_keys' => [
             'report_cache' => 'ReportDataCache',
             'device_report_dirty' => 'DeviceReportDirty',
@@ -50,7 +57,7 @@ return [
             'queue_failed' => '{redis-queue}-failed',
         ],
 
-        // 返回字段到gateway-worker进程名的映射
+        // 返回字段到 gateway-worker 进程名的映射。
         'gateway_process' => [
             'rtu_count' => 'Rtu-Gateway',
             'tcp_count' => 'Tcp-Gateway',

@@ -12,7 +12,7 @@ use CreatCode\IotMonitor\TrafficReader;
 class OverviewReader
 {
     /**
-     * 构建监控总览数据
+     * 构建监控总览数据。
      */
     public function build(int $minutes = 60): array
     {
@@ -29,7 +29,7 @@ class OverviewReader
     }
 
     /**
-     * 构建上报积压和活跃设备统计
+     * 构建上报积压和活跃设备统计。
      */
     protected function buildReportData(): array
     {
@@ -42,14 +42,14 @@ class OverviewReader
         });
 
         return [
-            // TSDB待写入点位数量，不等同于原始上报包数量
+            // TSDB 待写入点位数量，不等同于原始上报包数量。
             'report_cache_pending' => $reportCachePending,
             'report_cache_pending_format' => number_format($reportCachePending),
 
-            // MySQL实时数据待同步设备数量
+            // MySQL 实时数据待同步设备属性数量。
             'dirty_device_count' => $dirtyDeviceCount,
 
-            // 最近活跃设备数量
+            // 最近活跃设备数量。
             'active_3m' => $this->activeDeviceCount($now, 180),
             'active_5m' => $this->activeDeviceCount($now, 300),
             'active_30m' => $this->activeDeviceCount($now, 1800),
@@ -62,11 +62,11 @@ class OverviewReader
     }
 
     /**
-     * 构建队列运行统计
+     * 构建队列运行统计。
      */
     protected function buildQueueData(): array
     {
-        $queueNames = $this->config('overview.queues', ['login_command', 'check_report_data']);
+        $queueNames = $this->config('overview.queues', []);
         $waitingPrefix = $this->config('overview.redis_keys.queue_waiting_prefix', '{redis-queue}-waiting');
 
         $items = [];
@@ -108,7 +108,7 @@ class OverviewReader
     }
 
     /**
-     * 构建运行进程配置
+     * 构建运行进程配置。
      */
     protected function buildRuntimeData(): array
     {
@@ -122,15 +122,16 @@ class OverviewReader
                 'traffic_enable' => TrafficMonitor::isEnabled(),
             ],
             'redis_queue_process' => [
-                'fast_consumer_count' => (int)($queueProcess['fast_consumer']['count'] ?? 0),
-                'slow_consumer_count' => (int)($queueProcess['slow_consumer']['count'] ?? 0),
+                // 兼容旧版 fast_consumer/slow_consumer 和当前项目 login_consumer/consumer 命名。
+                'fast_consumer_count' => $this->processCount($queueProcess, ['fast_consumer', 'login_consumer']),
+                'slow_consumer_count' => $this->processCount($queueProcess, ['slow_consumer', 'consumer']),
             ],
             'gateway_process' => $this->formatGatewayProcess($gatewayProcess),
         ];
     }
 
     /**
-     * 统计指定时间窗口内的活跃设备数
+     * 统计指定时间窗口内的活跃设备数。
      */
     protected function activeDeviceCount(int $now, int $seconds): int
     {
@@ -144,7 +145,7 @@ class OverviewReader
     }
 
     /**
-     * 格式化网关进程数量，返回字段兼容现有监控接口
+     * 格式化网关进程数量，返回字段兼容现有监控接口。
      */
     protected function formatGatewayProcess(array $gatewayProcess): array
     {
@@ -166,7 +167,21 @@ class OverviewReader
     }
 
     /**
-     * 安全读取Redis整数，避免监控接口影响业务请求
+     * 读取进程数量，兼容多个进程配置名称。
+     */
+    protected function processCount(array $process, array $names): int
+    {
+        foreach ($names as $name) {
+            if (isset($process[$name]['count'])) {
+                return (int)$process[$name]['count'];
+            }
+        }
+
+        return 0;
+    }
+
+    /**
+     * 安全读取 Redis 整数，避免监控接口影响业务请求。
      */
     protected function safeRedisInt(callable $callback): int
     {
@@ -179,7 +194,7 @@ class OverviewReader
     }
 
     /**
-     * 判断健康状态
+     * 判断健康状态。
      */
     protected function judgeHealth(int $value, int $warningValue, int $dangerValue): string
     {
@@ -195,7 +210,7 @@ class OverviewReader
     }
 
     /**
-     * 读取插件配置
+     * 读取插件配置。
      *
      * @param mixed $default
      * @return mixed
@@ -215,7 +230,7 @@ class OverviewReader
     }
 
     /**
-     * 读取Webman配置
+     * 读取 Webman 配置。
      *
      * @param mixed $default
      * @return mixed

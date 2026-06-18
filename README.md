@@ -1,58 +1,30 @@
 # creatcode/iotmonitor
 
-`creatcode/iotmonitor` 是面向 Webman / Workerman 的物联网 TCP 协议辅助插件，主要提供协议拆包、流量统计、Redis 写入缓冲、数据库与 Redis 长连接管理等能力。
+`creatcode/iotmonitor` 是面向 Webman / Workerman TCP 服务的物联网协议辅助库，提供协议拆包、流量统计、Redis/DB 常驻连接管理和监控总览能力。
 
 ## 环境要求
 
 - PHP >= 7.2
 - Webman / Workerman
-- Redis
+- ext-redis
 - webman/think-cache
 - webman/think-orm
 
-## 安装
+## 配置
 
-本地 path 包开发时，主项目 `composer.json` 可这样引用：
-
-```json
-{
-  "repositories": [
-    {
-      "type": "path",
-      "url": "../packages/iotmonitor",
-      "options": {
-        "symlink": true
-      }
-    }
-  ],
-  "require": {
-    "creatcode/iotmonitor": "*"
-  }
-}
-```
-
-安装或更新：
-
-```bash
-composer update creatcode/iotmonitor
-composer dump-autoload
-```
-
-## 插件配置
-
-配置目录：
+主项目配置目录：
 
 ```text
 config/plugin/creatcode/iotmonitor/
 ```
 
-常用配置示例：
+常用配置：
 
 ```php
 <?php
 
 return [
-    'enable' => true,
+    'enable' => false,
 
     'traffic' => [
         'enable' => false,
@@ -66,10 +38,7 @@ return [
     ],
 
     'protocol' => [
-        // 是否校验 Modbus RTU CRC，默认关闭以兼容部分设备非标准报文
         'rtu_crc_check' => false,
-
-        // 协议特殊包长度，key为包类型标识，value为完整包长
         'extra_packets' => [
             'imei' => 19,
             'ping' => 4,
@@ -79,157 +48,123 @@ return [
     'overview' => [
         'queues' => [
             'login_command',
-            'check_report_data',
+            'exam_report_data',
+            'energy_data_check',
+            'energy_record',
+            'dev_link',
+            'dev_alarm',
+            'food_command',
+            'third_device',
         ],
     ],
 ];
 ```
 
-说明：
-
-- `enable`：插件总开关。
-- `traffic.enable`：是否启用协议流量统计，默认关闭。
-- `traffic.flush_interval`：进程内统计数据写入 Redis 的间隔，单位秒。
-- `traffic.retention_seconds`：分钟流量统计在 Redis 中的保留时间。
-- `protocol.rtu_crc_check`：是否校验 Modbus RTU CRC，默认关闭以兼容部分非标准设备。
-- `protocol.extra_packets`：协议特殊包长度配置，当前用于识别 `imei`、`ping` 等特殊包。
-- 修改配置后需要重启 Webman / GatewayWorker 常驻进程。
-
-插件不再读取 `.env` 中的 `monitor.traffic_enable`，也不依赖 `TRAFFIC_MONITOR_ENABLED` 常量。
+修改插件、Redis、队列或协议配置后，需要完整重启 Webman / GatewayWorker 常驻进程，避免旧进程继续使用旧配置。
 
 ## 协议接入
 
-内置协议类位于命名空间：
+内置协议类位于：
 
 ```php
 CreatCode\IotMonitor\Protocol
 ```
 
-当前包含：
+包含：
 
 - `ModbusTcpProtocol`
 - `ModbusRtuProtocol`
-- `TemperatureProtocol`
 - `LoRaProtocol`
+- `TemperatureProtocol`
 
-协议行为说明：
-
-- `ModbusTcpProtocol`：按 MBAP 头部长度字段拆包，协议标识符必须为 `0x0000`。
-- `ModbusRtuProtocol`：按功能码推断 RTU 响应帧长度；开启 `protocol.rtu_crc_check` 后校验 CRC16。
-- `TemperatureProtocol`：固定 7 字节上报包，按前 5 字节累加和校验第 6 字节。
-- `LoRaProtocol`：按 `0x6C` 起始符、`0x11` 方案码、载荷长度、累加和、`0x16` 结尾符校验；载荷长度范围为 2 到 250 字节。
-
-在 GatewayWorker 或 Workerman TCP 服务中指定协议类即可：
+GatewayWorker 配置示例：
 
 ```php
 use CreatCode\IotMonitor\Protocol\ModbusTcpProtocol;
+use Webman\GatewayWorker\Gateway;
 
 return [
     'Tcp-Gateway' => [
-        'handler' => Webman\GatewayWorker\Gateway::class,
-        'listen' => 'tcp://0.0.0.0:2404',
+        'handler' => Gateway::class,
+        'listen' => 'tcp://0.0.0.0:2350',
         'protocol' => ModbusTcpProtocol::class,
     ],
 ];
 ```
 
+## Redis 连接管理
+
+`RedisManager` 用于常驻进程中的连接复用、定期探活、断线丢弃和一次重连重试。
+
+```php
+use CreatCode\IotMonitor\RedisManager;
+
+$value = RedisManager::hGet('RealData:10001', 'temperature');
+```
+
+默认规则：
+
+- 只读命令如 `hGet()`、`hGetAll()`、`lLen()` 连接异常时会重连并重试一次。
+- 写命令默认不自动重试，避免 Redis 已执行但客户端未收到响应时重复写入。
+- `pipeline()` 默认不自动重试，确认批量命令可重放时再传入第二个参数 `true`。
+
+显式安全写入：
+
+```php
+RedisManager::safeWrite('zAdd', ['DeviceActiveTime', time(), 'device001'], 0);
+
+RedisManager::safePipeline(function ($redis) {
+    $redis->hIncrBy('MonitorTraffic:minute:202606181530', 'rx_packets', 1);
+    $redis->expire('MonitorTraffic:minute:202606181530', 86400);
+});
+```
+
+`safeWrite()` 和 `safePipeline()` 会吞掉异常并返回默认值，适合监控统计、非关键缓存、可接受降级的写入。核心业务写入仍建议显式捕获异常，避免静默丢数据。
+
+## 数据库连接管理
+
+`DbManager::call()` 会在业务 SQL 前按配置间隔执行探活。遇到连接异常时会断开连接并重试一次，业务异常会继续抛出。
+
+```php
+use CreatCode\IotMonitor\DbManager;
+use think\facade\Db;
+
+$rows = DbManager::call(function () {
+    return Db::name('device')->where('status', 'normal')->select();
+});
+```
+
+## 监控总览
+
+`OverviewReader` 会读取：
+
+- 上报缓存积压：`ReportDataCache`
+- MySQL 同步脏集合：`DeviceReportDirty`
+- 活跃设备 ZSET：`DeviceActiveTime`
+- redis-queue 等待、延迟、失败队列
+- GatewayWorker 和 redis-queue 进程数
+
+队列进程名同时兼容旧版 `fast_consumer` / `slow_consumer` 和当前项目使用的 `login_consumer` / `consumer`。
+
 ## 流量统计
 
-启用 `traffic.enable` 后，协议收发数据会自动记录到 Redis。
-
-读取最近 N 分钟统计：
-
-```php
-use CreatCode\IotMonitor\Monitor\AppTrafficStore;
-use CreatCode\IotMonitor\TrafficReader;
-
-$reader = new TrafficReader(new AppTrafficStore());
-$data = $reader->buildTrafficData(60);
-```
-
-返回数据主要包含：
-
-- `current`：最近 1 分钟统计。
-- `summary`：指定时间窗口汇总。
-- `windows`：多个时间窗口统计。
-- `protocols`：按协议拆分的统计。
-
-手动记录流量：
-
-```php
-use CreatCode\IotMonitor\TrafficMonitor;
-
-TrafficMonitor::recordIncoming('custom', strlen($buffer), true);
-TrafficMonitor::record('custom', 'tx', strlen($response));
-TrafficMonitor::flush();
-```
-
-## Redis 存储
-
-流量统计默认写入 Redis Hash：
+启用 `traffic.enable` 后，协议收发数据会先写入进程内缓冲，再按 `flush_interval` 批量写入 Redis Hash：
 
 ```text
 MonitorTraffic:minute:{YmdHi}
 ```
 
-常见字段：
-
-- `rx_bytes`
-- `tx_bytes`
-- `rx_packets`
-- `tx_packets`
-- `report_packets`
-- `{protocol}:rx_bytes`
-- `{protocol}:tx_bytes`
-- `{protocol}:rx_packets`
-- `{protocol}:tx_packets`
-- `{protocol}:report_packets`
-
-默认保留 1 天，Redis 库编号由主项目 `config/thinkcache.php` 决定。
-
-## 连接管理
-
-插件提供 `RedisManager` 和 `DbManager`，用于常驻进程中的连接复用、探活和断线重试。
-
-```php
-use CreatCode\IotMonitor\DbManager;
-use CreatCode\IotMonitor\RedisManager;
-
-$value = RedisManager::hGet('DeviceData', '10001');
-
-$rows = DbManager::call(function () {
-    return \think\facade\Db::name('device')->select();
-});
-```
-
-Redis 批量写入建议使用 pipeline：
-
-```php
-RedisManager::pipeline(function ($redis) {
-    $redis->hSet('demo', 'count', 1);
-    $redis->expire('demo', 60);
-});
-```
-
-连接重试规则：
-
-- 静态读命令调用，例如 `RedisManager::hGetAll()`、`RedisManager::lLen()`，连接异常时会自动重连并重试一次。
-- 写入、递增、弹出队列等非幂等命令默认不自动重试，避免服务端已执行但客户端未收到响应时重复执行。
-- `pipeline()` 默认不自动重试；只有确认批量命令可重复执行时，才传入第二个参数 `true`。
-- 需要自行控制异常处理时，可使用 `RedisManager::call($callback, $default, $swallowException, $retryOnConnectionException)`。
+监控写入使用 `RedisManager::safePipeline()`，Redis 短暂不可用时只影响监控统计，不影响设备上报主链路。
 
 ## 日志
 
-插件内部日志统一通过 `ManagerHelper::log()` 写入：
+库内日志统一通过 `ManagerHelper::log()` 写入：
 
-- 主项目存在 `iotlog()` 时，优先使用项目日志。
-- 不存在 `iotlog()` 时，写入 `runtime/iotlog/`。
+- 主项目存在 `iotlog()` 时优先使用项目日志。
+- 否则写入 `runtime/iotlog/`。
 
-流量刷盘失败会写入 `monitor.log`，用于排查 Redis 连接或写入异常。
+常见日志文件：
 
-## 注意事项
-
-- `traffic.enable` 默认关闭，生产环境按需开启。
-- 统计数据先写入进程内缓冲，再定时刷入 Redis。
-- 修改插件配置、Redis 配置或协议类后，需要重启常驻进程。
-- Redis 连接配置以主项目 `config/thinkcache.php` 为准。
+- `redis.log`
+- `db.log`
+- `monitor.log`

@@ -16,7 +16,7 @@ class AppTrafficStore implements StoreInterface
     {
         $key = "MonitorTraffic:minute:{$minute}";
 
-        RedisManager::pipeline(function ($redis) use ($key, $fields, $ttl) {
+        RedisManager::safePipeline(function ($redis) use ($key, $fields, $ttl) {
             foreach ($fields as $field => $value) {
                 if ($value > 0) {
                     $redis->hIncrBy($key, $field, $value);
