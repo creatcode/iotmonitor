@@ -235,8 +235,94 @@ class RedisManager
         }
     }
 
+        /**
+     * 扫描 key，显式保留 phpredis scan 的游标引用参数。
+     *
+     * @param mixed $iterator
+     * @param string|null $pattern
+     * @param int $count
+     * @return array|false
+     * @throws \Throwable
+     */
+    public static function scan(&$iterator, $pattern = null, int $count = 0)
+    {
+        return self::call(function ($redis) use (&$iterator, $pattern, $count) {
+            if ($count > 0) {
+                return $redis->scan($iterator, $pattern, $count);
+            }
+
+            return $redis->scan($iterator, $pattern);
+        }, false, false, true);
+    }
+
+    /**
+     * 扫描 hash，显式保留 phpredis hScan 的游标引用参数。
+     *
+     * @param string $key
+     * @param mixed $iterator
+     * @param string|null $pattern
+     * @param int $count
+     * @return array|false
+     * @throws \Throwable
+     */
+    public static function hScan(string $key, &$iterator, $pattern = null, int $count = 0)
+    {
+        return self::call(function ($redis) use ($key, &$iterator, $pattern, $count) {
+            if ($count > 0) {
+                return $redis->hScan($key, $iterator, $pattern, $count);
+            }
+
+            return $redis->hScan($key, $iterator, $pattern);
+        }, false, false, true);
+    }
+
+    /**
+     * 扫描 set，显式保留 phpredis sScan 的游标引用参数。
+     *
+     * @param string $key
+     * @param mixed $iterator
+     * @param string|null $pattern
+     * @param int $count
+     * @return array|false
+     * @throws \Throwable
+     */
+    public static function sScan(string $key, &$iterator, $pattern = null, int $count = 0)
+    {
+        return self::call(function ($redis) use ($key, &$iterator, $pattern, $count) {
+            if ($count > 0) {
+                return $redis->sScan($key, $iterator, $pattern, $count);
+            }
+
+            return $redis->sScan($key, $iterator, $pattern);
+        }, false, false, true);
+    }
+
+    /**
+     * 扫描 zset，显式保留 phpredis zScan 的游标引用参数。
+     *
+     * @param string $key
+     * @param mixed $iterator
+     * @param string|null $pattern
+     * @param int $count
+     * @return array|false
+     * @throws \Throwable
+     */
+    public static function zScan(string $key, &$iterator, $pattern = null, int $count = 0)
+    {
+        return self::call(function ($redis) use ($key, &$iterator, $pattern, $count) {
+            if ($count > 0) {
+                return $redis->zScan($key, $iterator, $pattern, $count);
+            }
+
+            return $redis->zScan($key, $iterator, $pattern);
+        }, false, false, true);
+    }
+
     /**
      * 根据方法名执行 Redis 调用。
+     *
+     * 注意：scan/hScan/sScan/zScan 这类命令包含游标引用参数，不能通过 execute() 的数组参数安全转发，
+     * 请直接调用 RedisManager::scan()、RedisManager::hScan()、RedisManager::sScan()、RedisManager::zScan()。
      *
      * @param string $method
      * @param array $arguments
@@ -247,9 +333,18 @@ class RedisManager
      */
     public static function execute($method, array $arguments = [], $default = null, bool $swallowException = false)
     {
+        $method = (string)$method;
+        $lowerMethod = strtolower($method);
+
+        if (in_array($lowerMethod, ['scan', 'hscan', 'sscan', 'zscan'], true)) {
+            throw new \InvalidArgumentException(
+                'Redis ' . $method . ' contains cursor reference parameter, please call RedisManager::' . $method . '() directly.'
+            );
+        }
+
         return self::call(function ($redis) use ($method, $arguments) {
             return call_user_func_array([$redis, $method], $arguments);
-        }, $default, $swallowException, self::isReadCommand((string)$method));
+        }, $default, $swallowException, self::isReadCommand($method));
     }
 
     /**
@@ -372,7 +467,6 @@ class RedisManager
             'lindex',
             'lrange',
             'keys',
-            'scan',
         ], true);
     }
 
