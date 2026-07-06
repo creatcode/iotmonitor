@@ -1,8 +1,9 @@
 <?php
 
 return [
-    // 监控功能总开关，仅控制插件监控数据采集；不影响数据库/Redis 探活和协议配置读取。
-    'enable' => false,
+    // 插件总开关，关闭后 Webman 将跳过当前插件目录下的全部配置加载
+    // 会同时影响 protocol、db、traffic、overview 等配置读取
+    'enable' => true,
 
     'traffic' => [
         // 是否启用接口流量监控；同时受上方监控功能总开关控制。
@@ -35,6 +36,9 @@ return [
     ],
 
     'overview' => [
+        // 是否启用监控总览写入；同时受上方监控功能总开关控制。
+        'enable' => false,
+
         // 需要监控的 redis-queue 队列名。
         'queues' => [
             'login_command',
