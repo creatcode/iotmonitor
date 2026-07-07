@@ -16,12 +16,7 @@ class ManagerHelper
      */
     public static function dbConfig($name, $default = null)
     {
-        $config = self::pluginConfig();
-        if (isset($config['db']) && is_array($config['db']) && array_key_exists($name, $config['db'])) {
-            return $config['db'][$name];
-        }
-
-        return $default;
+        return self::config('db.' . $name, $default);
     }
 
     /**
@@ -42,19 +37,77 @@ class ManagerHelper
     }
 
     /**
+     * 获取插件配置项，支持点号路径
+     *
+     * @param string $name
+     * @param mixed $default
+     * @return mixed
+     */
+    public static function config(string $name, $default = null)
+    {
+        $value = self::pluginConfig();
+
+        foreach (explode('.', $name) as $key) {
+            if (!is_array($value) || !array_key_exists($key, $value)) {
+                return $default;
+            }
+
+            $value = $value[$key];
+        }
+
+        return $value;
+    }
+
+    /**
+     * 获取布尔配置项，兼容字符串关闭值
+     *
+     * @param string $name
+     * @param bool $default
+     * @return bool
+     */
+    public static function boolConfig(string $name, bool $default = false): bool
+    {
+        $value = self::config($name, $default);
+
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        return !in_array(strtolower(trim((string)$value)), ['0', 'false', 'off', 'no', 'close'], true);
+    }
+
+    /**
+     * 判断插件总开关是否开启
+     *
+     * @return bool
+     */
+    public static function pluginEnabled(): bool
+    {
+        return self::boolConfig('enable', true);
+    }
+
+    /**
+     * 判断流量监控是否开启
+     *
+     * @return bool
+     */
+    public static function trafficEnabled(): bool
+    {
+        return self::pluginEnabled() && self::boolConfig('traffic.enable', false);
+    }
+
+    /**
      * 获取设备活跃时间 Redis key
      *
      * @return string
      */
     public static function deviceActiveTimeKey(): string
     {
-        $config = self::pluginConfig();
-
-        if (empty($config['overview']['enable'])) {
+        if (!self::pluginEnabled() || !self::boolConfig('overview.enable', false)) {
             return '';
         }
 
-        return (string)($config['overview']['redis_keys']['device_active_time'] ?? 'DeviceActiveTime');
+        return (string)self::config('overview.redis_keys.device_active_time', 'DeviceActiveTime');
     }
 
     /**
@@ -67,12 +120,8 @@ class ManagerHelper
      */
     public static function log($logName, $data): void
     {
-        if (function_exists('iotlog')) {
-            iotlog($logName, $data);
-            return;
-        }
-
-        $dir = self::runtimePath() . DIRECTORY_SEPARATOR . 'iotlog' . DIRECTORY_SEPARATOR;
+        // getcwd() . DIRECTORY_SEPARATOR . 'runtime';
+        $dir = rtrim(runtime_path(), '/\\') . DIRECTORY_SEPARATOR . 'iotlog' . DIRECTORY_SEPARATOR;
         if (!is_dir($dir)) {
             mkdir($dir, 0777, true);
         }

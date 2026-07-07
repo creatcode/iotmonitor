@@ -35,10 +35,10 @@ class OverviewReader
     {
         $now = time();
         $reportCachePending = $this->safeRedisInt(function () {
-            return RedisManager::lLen($this->config('overview.redis_keys.report_cache', 'ReportDataCache'));
+            return RedisManager::lLen(ManagerHelper::config('overview.redis_keys.report_cache', 'ReportDataCache'));
         });
         $dirtyDeviceCount = $this->safeRedisInt(function () {
-            return RedisManager::sCard($this->config('overview.redis_keys.device_report_dirty', 'DeviceReportDirty'));
+            return RedisManager::sCard(ManagerHelper::config('overview.redis_keys.device_report_dirty', 'DeviceReportDirty'));
         });
 
         return [
@@ -66,8 +66,8 @@ class OverviewReader
      */
     protected function buildQueueData(): array
     {
-        $queueNames = $this->config('overview.queues', []);
-        $waitingPrefix = $this->config('overview.redis_keys.queue_waiting_prefix', '{redis-queue}-waiting');
+        $queueNames = ManagerHelper::config('overview.queues', []);
+        $waitingPrefix = ManagerHelper::config('overview.redis_keys.queue_waiting_prefix', '{redis-queue}-waiting');
 
         $items = [];
         foreach ((array)$queueNames as $queue) {
@@ -90,10 +90,10 @@ class OverviewReader
         }
 
         $delayed = $this->safeRedisInt(function () {
-            return RedisManager::zCard($this->config('overview.redis_keys.queue_delayed', '{redis-queue}-delayed'));
+            return RedisManager::zCard(ManagerHelper::config('overview.redis_keys.queue_delayed', '{redis-queue}-delayed'));
         });
         $failed = $this->safeRedisInt(function () {
-            return RedisManager::lLen($this->config('overview.redis_keys.queue_failed', '{redis-queue}-failed'));
+            return RedisManager::lLen(ManagerHelper::config('overview.redis_keys.queue_failed', '{redis-queue}-failed'));
         });
 
         return [
@@ -137,7 +137,7 @@ class OverviewReader
     {
         return $this->safeRedisInt(function () use ($now, $seconds) {
             return RedisManager::zCount(
-                $this->config('overview.redis_keys.device_active_time', 'DeviceActiveTime'),
+                ManagerHelper::config('overview.redis_keys.device_active_time', 'DeviceActiveTime'),
                 $now - $seconds,
                 $now
             );
@@ -149,7 +149,7 @@ class OverviewReader
      */
     protected function formatGatewayProcess(array $gatewayProcess): array
     {
-        $mapping = $this->config('overview.gateway_process', [
+        $mapping = ManagerHelper::config('overview.gateway_process', [
             'rtu_count' => 'Rtu-Gateway',
             'tcp_count' => 'Tcp-Gateway',
             'lora_count' => 'LoRa-Gateway',
@@ -207,26 +207,6 @@ class OverviewReader
         }
 
         return 'normal';
-    }
-
-    /**
-     * 读取插件配置。
-     *
-     * @param mixed $default
-     * @return mixed
-     */
-    protected function config(string $name, $default = null)
-    {
-        $value = ManagerHelper::pluginConfig();
-        foreach (explode('.', $name) as $key) {
-            if (!is_array($value) || !array_key_exists($key, $value)) {
-                return $default;
-            }
-
-            $value = $value[$key];
-        }
-
-        return $value;
     }
 
     /**

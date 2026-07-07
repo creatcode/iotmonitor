@@ -1,30 +1,36 @@
 # creatcode/iotmonitor
 
-`creatcode/iotmonitor` 是面向 Webman / Workerman TCP 服务的物联网协议辅助库，提供协议拆包、流量统计、Redis/DB 常驻连接管理和监控总览能力。
+面向 Webman / Workerman TCP 服务的物联网协议辅助库。
 
-## 环境要求
+## 功能
+
+- 协议拆包（Modbus TCP / RTU、LoRa、温湿度）
+- 流量统计（进程内缓冲 + 批量写入 Redis）
+- Redis / 数据库连接管理（探活、断线重连）
+- 监控总览（上报积压、队列、活跃设备、进程数）
+- Web 监控面板（ECharts 可视化）
+
+## 环境
 
 - PHP >= 7.2
-- Webman / Workerman
 - ext-redis
-- webman/think-cache
-- webman/think-orm
+- Webman ^1.5 / Workerman ^4.0 || ^5.0
+- webman/think-cache ^1.0
+- webman/think-orm ^1.1
+
+## 安装
+
+```bash
+composer require creatcode/iotmonitor
+```
+
+安装后重启 Webman。配置文件位于 `config/plugin/creatcode/iotmonitor/app.php`。
 
 ## 配置
 
-主项目配置目录：
-
-```text
-config/plugin/creatcode/iotmonitor/
-```
-
-常用配置：
-
 ```php
-<?php
-
 return [
-    'enable' => false,
+    'enable' => true,
 
     'traffic' => [
         'enable' => false,
@@ -46,125 +52,112 @@ return [
     ],
 
     'overview' => [
-        'queues' => [
-            'login_command',
-            'exam_report_data',
-            'energy_data_check',
-            'energy_record',
-            'dev_link',
-            'dev_alarm',
-            'food_command',
-            'third_device',
-        ],
+        'enable' => false,
+        'queues' => ['login_command', 'dev_link', 'dev_alarm'],
     ],
 ];
 ```
 
-修改插件、Redis、队列或协议配置后，需要完整重启 Webman / GatewayWorker 常驻进程，避免旧进程继续使用旧配置。
+> 修改配置后需完整重启 Webman 常驻进程。
 
 ## 协议接入
-
-内置协议类位于：
-
-```php
-CreatCode\IotMonitor\Protocol
-```
-
-包含：
-
-- `ModbusTcpProtocol`
-- `ModbusRtuProtocol`
-- `LoRaProtocol`
-- `TemperatureProtocol`
 
 GatewayWorker 配置示例：
 
 ```php
 use CreatCode\IotMonitor\Protocol\ModbusTcpProtocol;
-use Webman\GatewayWorker\Gateway;
 
 return [
     'Tcp-Gateway' => [
-        'handler' => Gateway::class,
+        'handler' => \Webman\GatewayWorker\Gateway::class,
         'listen' => 'tcp://0.0.0.0:2350',
         'protocol' => ModbusTcpProtocol::class,
     ],
 ];
 ```
 
-## Redis 连接管理
+内置协议：`ModbusTcpProtocol`、`ModbusRtuProtocol`、`LoRaProtocol`、`TemperatureProtocol`。
 
-`RedisManager` 用于常驻进程中的连接复用、定期探活、断线丢弃和一次重连重试。
+## Redis 连接管理
 
 ```php
 use CreatCode\IotMonitor\RedisManager;
 
-$value = RedisManager::hGet('RealData:10001', 'temperature');
-```
+// 读操作自动重连重试一次
+$value = RedisManager::hGet('key', 'field');
 
-默认规则：
+// 安全写入（吞异常，返回默认值）
+RedisManager::safeWrite('zAdd', ['Key', time(), 'member'], 0);
 
-- 只读命令如 `hGet()`、`hGetAll()`、`lLen()` 连接异常时会重连并重试一次。
-- 写命令默认不自动重试，避免 Redis 已执行但客户端未收到响应时重复写入。
-- `pipeline()` 默认不自动重试，确认批量命令可重放时再传入第二个参数 `true`。
-
-显式安全写入：
-
-```php
-RedisManager::safeWrite('zAdd', ['DeviceActiveTime', time(), 'device001'], 0);
-
+// 安全批量写入
 RedisManager::safePipeline(function ($redis) {
-    $redis->hIncrBy('MonitorTraffic:minute:202606181530', 'rx_packets', 1);
-    $redis->expire('MonitorTraffic:minute:202606181530', 86400);
+    $redis->incr('counter');
 });
 ```
 
-`safeWrite()` 和 `safePipeline()` 会吞掉异常并返回默认值，适合监控统计、非关键缓存、可接受降级的写入。核心业务写入仍建议显式捕获异常，避免静默丢数据。
-
 ## 数据库连接管理
-
-`DbManager::call()` 会在业务 SQL 前按配置间隔执行探活。遇到连接异常时会断开连接并重试一次，业务异常会继续抛出。
 
 ```php
 use CreatCode\IotMonitor\DbManager;
-use think\facade\Db;
 
 $rows = DbManager::call(function () {
-    return Db::name('device')->where('status', 'normal')->select();
+    return \think\facade\Db::name('device')->select();
 });
 ```
 
 ## 监控总览
 
-`OverviewReader` 会读取：
+```php
+use CreatCode\IotMonitor\Monitor\OverviewReader;
 
-- 上报缓存积压：`ReportDataCache`
-- MySQL 同步脏集合：`DeviceReportDirty`
-- 活跃设备 ZSET：`DeviceActiveTime`
-- redis-queue 等待、延迟、失败队列
-- GatewayWorker 和 redis-queue 进程数
+$data = (new OverviewReader())->build(60);
+```
 
-队列进程名同时兼容旧版 `fast_consumer` / `slow_consumer` 和当前项目使用的 `login_consumer` / `consumer`。
+返回流量、上报积压、队列状态、进程数等数据。
 
 ## 流量统计
 
-启用 `traffic.enable` 后，协议收发数据会先写入进程内缓冲，再按 `flush_interval` 批量写入 Redis Hash：
+启用后协议收发数据按分钟写入 Redis：
 
 ```text
 MonitorTraffic:minute:{YmdHi}
 ```
 
-监控写入使用 `RedisManager::safePipeline()`，Redis 短暂不可用时只影响监控统计，不影响设备上报主链路。
+包含总收发字节/包数、各协议分项、上报包数统计。
+
+## 监控面板
+
+访问路径：`/iotmonitor`
+
+基于 ECharts 的可视化监控页面，展示流量趋势、上报积压、队列状态、健康状态等。
+
+## 辅助方法
+
+`ManagerHelper` 提供以下公开方法：
+
+```php
+use CreatCode\IotMonitor\ManagerHelper;
+
+// 读取配置（支持点号路径）
+ManagerHelper::config('traffic.flush_interval', 5);
+ManagerHelper::boolConfig('traffic.enable', false);
+ManagerHelper::dbConfig('redis_ping_interval', 15);
+ManagerHelper::pluginConfig(); // 完整配置数组
+
+// 状态判断
+ManagerHelper::pluginEnabled();
+ManagerHelper::trafficEnabled();
+
+// 工具方法
+ManagerHelper::deviceActiveTimeKey(); // 活跃设备 Redis key
+ManagerHelper::log('monitor.log', 'message'); // 写日志
+```
 
 ## 日志
 
-库内日志统一通过 `ManagerHelper::log()` 写入：
+- 写入 `runtime/iotlog/`
+- 日志文件：`redis.log`、`db.log`、`monitor.log`
 
-- 主项目存在 `iotlog()` 时优先使用项目日志。
-- 否则写入 `runtime/iotlog/`。
+## 许可证
 
-常见日志文件：
-
-- `redis.log`
-- `db.log`
-- `monitor.log`
+MIT

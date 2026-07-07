@@ -120,23 +120,13 @@ abstract class BaseProtocol
             return static::$extraPacketsCache;
         }
 
-        $config = static::pluginConfig();
-        if (isset($config['protocol']['extra_packets']) && is_array($config['protocol']['extra_packets'])) {
-            static::$extraPacketsCache = $config['protocol']['extra_packets'];
+        $extraPackets = ManagerHelper::config('protocol.extra_packets');
+        if (is_array($extraPackets)) {
+            static::$extraPacketsCache = $extraPackets;
             return static::$extraPacketsCache;
         }
 
         throw new \RuntimeException('缺少配置 plugin.creatcode.iotmonitor.app.protocol.extra_packets');
-    }
-
-    /**
-     * 获取插件配置
-     *
-     * @return array
-     */
-    protected static function pluginConfig(): array
-    {
-        return ManagerHelper::pluginConfig();
     }
 
 
@@ -171,7 +161,6 @@ abstract class BaseProtocol
      */
     protected static function protocolConfig(string $name, $default = null)
     {
-        $config = static::pluginConfig();
-        return $config['protocol'][$name] ?? $default;
+        return ManagerHelper::config('protocol.' . $name, $default);
     }
 }
