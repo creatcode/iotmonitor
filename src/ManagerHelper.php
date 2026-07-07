@@ -42,6 +42,22 @@ class ManagerHelper
     }
 
     /**
+     * 获取设备活跃时间 Redis key
+     *
+     * @return string
+     */
+    public static function deviceActiveTimeKey(): string
+    {
+        $config = self::pluginConfig();
+
+        if (empty($config['overview']['enable'])) {
+            return '';
+        }
+
+        return (string)($config['overview']['redis_keys']['device_active_time'] ?? 'DeviceActiveTime');
+    }
+
+    /**
      * 写入运行日志
      * 项目存在 iotlog() 时优先使用项目日志，不存在时使用包内默认日志
      *
