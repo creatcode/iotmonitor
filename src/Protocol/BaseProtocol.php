@@ -21,13 +21,33 @@ abstract class BaseProtocol
     protected static $extraPacketsCache = null;
 
     /**
-     * 检查数据包完整性
+     * 检查数据包完整性。
      *
      * @param string $buffer
      * @param ConnectionInterface $connection
      * @return int
      */
-    abstract public static function input($buffer, ConnectionInterface $connection);
+    final public static function input($buffer, ConnectionInterface $connection)
+    {
+        $constant = static::class . '::PROTOCOL_NAME';
+
+        if (!defined($constant) || !is_string(constant($constant)) || constant($constant) === '') {
+            echo '[IotMonitor] 协议类 ' . static::class . ' 未定义非空 PROTOCOL_NAME，连接已关闭。' . PHP_EOL;
+
+            return static::closeInvalidConnection($connection);
+        }
+
+        return static::inputPayload($buffer, $connection);
+    }
+
+    /**
+     * 具体协议的拆包实现。
+     *
+     * @param string $buffer
+     * @param ConnectionInterface $connection
+     * @return int
+     */
+    abstract protected static function inputPayload($buffer, ConnectionInterface $connection);
 
     /**
      * 协议解析
@@ -45,11 +65,13 @@ abstract class BaseProtocol
      */
     public static function decode($buffer)
     {
+        $protocol = static::protocolName();
         $result = static::decodePayload($buffer);
+        $result['protocol'] = $protocol;
 
         if (TrafficMonitor::isEnabled()) {
             TrafficMonitor::recordIncoming(
-                static::protocolName(),
+                $protocol,
                 strlen($buffer),
                 ($result['type'] ?? '') === 'report'
             );

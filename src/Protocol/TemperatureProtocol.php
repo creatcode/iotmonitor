@@ -21,7 +21,7 @@ class TemperatureProtocol extends BaseProtocol
      * @param ConnectionInterface $connection
      * @return int
      */
-    public static function input($buffer, ConnectionInterface $connection)
+    protected static function inputPayload($buffer, ConnectionInterface $connection)
     {
         $recvLen = strlen($buffer);
         if ($recvLen < 4) {
@@ -67,8 +67,7 @@ class TemperatureProtocol extends BaseProtocol
             $data = $buffer;
         }
 
-        $protocol = static::protocolName();
-        return compact('type', 'data', 'protocol');
+        return compact('type', 'data');
     }
 
     /**

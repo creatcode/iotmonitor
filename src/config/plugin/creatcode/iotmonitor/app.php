@@ -30,7 +30,7 @@ return [
 
         // 协议特殊包长度，key 为包类型标识，value 为完整包长度。
         'extra_packets' => [
-            'imei' => 19,
+            'imei' => 10,
             'ping' => 4,
         ],
     ],
